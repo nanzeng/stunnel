@@ -18,6 +18,8 @@ class StunnelServer:
         self.socket = self.context.socket(zmq.DEALER)
         self.socket.bind(f'tcp://0.0.0.0:{self.private_port}')
 
+        asyncio.create_task(self.from_service())
+
         server = await asyncio.start_server(
                 self.handle_connection, '0.0.0.0', self.public_port)
         
@@ -33,7 +35,6 @@ class StunnelServer:
         self.sessions[addr] = reader, writer
 
         asyncio.create_task(self.from_client(addr))
-        asyncio.create_task(self.from_service(addr))
 
     async def from_client(self, addr):
         reader, writer = self.sessions[addr]
@@ -48,16 +49,17 @@ class StunnelServer:
         #await writer.wait_closed()
         print(f'{addr} writer clean up')
 
+    async def to_client(self, writer, data):
+        writer.write(data)
+        await writer.drain()
 
-    async def from_service(self, addr):
-        _, writer = self.sessions[addr]
-        print(f'Writer: {writer}')
+    async def from_service(self):
         while True:
-            _, _, data = await self.socket.recv_multipart()
+            _, addr, data = await self.socket.recv_multipart()
+            _, writer = self.sessions[addr]
             if data: 
                 print(f'Data size is {len(data)}')
-                writer.write(data)
-                await writer.drain()
+                asyncio.create_task(self.to_client(writer, data))
             #else:
                 #writer.close()
                 #await writer.wait_closed()

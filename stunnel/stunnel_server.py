@@ -3,76 +3,84 @@ import asyncio
 import zmq
 import zmq.asyncio
 import logging
+import msgpack
 
+from functools import partial
+from collections import defaultdict
+
+#from .protocol import HEARTBEAT, LOGON, LOGOUT, RELAY
+HEARTBEAT = b'\x00'
+LOGON = b'\x01'
+LOGOUT = b'\x02'
+EXCEPTION = b'\x03'
+RELAY = b'\x04'
 
 class StunnelServer:
-    def __init__(self, public_port, private_port, bufsize=1024):
-        self.public_port = public_port
-        self.private_port = private_port
+    def __init__(self, port, bufsize=4096):
+        self.port = port
         self.bufsize = bufsize
     
         self.context = zmq.asyncio.Context()
-        self.sessions = {}
+        self.sessions = defaultdict(dict)
 
     async def run(self):
-        self.socket = self.context.socket(zmq.DEALER)
-        self.socket.bind(f'tcp://0.0.0.0:{self.private_port}')
+        self.socket = self.context.socket(zmq.ROUTER)
+        self.socket.bind(f'tcp://0.0.0.0:{self.port}')
 
-        asyncio.create_task(self.from_service())
+        while True:
+            msg = await self.socket.recv_multipart()
+            print(msg)
+            addr = msg[0]
+            request = msg[2:]
+            cmd = request[0]
+            if cmd == LOGON:
+                if addr not in self.sessions:
+                    asyncio.create_task(self.create_session(addr, msgpack.unpackb(request[1])))
+            elif cmd == RELAY:
+                asyncio.create_task(self.to_client(addr, *request[1:]))
 
-        server = await asyncio.start_server(
-                self.handle_connection, '0.0.0.0', self.public_port)
-        
-        async with server:
-            await server.serve_forever()
+    async def create_session(self, addr, port):
+        try:
+            server = await asyncio.start_server(
+                partial(self.handle_connection, addr), '0.0.0.0', port
+            )
+        except Exception as e:
+            logging.error(e)
+            self.socket.send_multipart([addr, b'', EXCEPTION, msgpack.packb(e)])
+        else:
+            logging.info(f'Listening on {port}')
+            async with server:
+                await server.serve_forever()       
 
-    async def handle_connection(self, reader, writer):
-        addr = writer.get_extra_info('peername')
-        print(f'client connected from {addr}')
+    async def handle_connection(self, addr, reader, writer):
+        print(writer)
+        client_addr = writer.get_extra_info('peername')
+        client_addr = f'{client_addr}'.encode()
+        self.sessions[addr][client_addr] = reader, writer
+        logging.info(f'client connected from {client_addr}')
+        asyncio.create_task(self.from_client(addr, client_addr, reader))
 
-        addr = f'{addr[0]}:{addr[1]}'.encode()
-        print(f'Sessions {self.sessions}')
-        self.sessions[addr] = reader, writer
-
-        asyncio.create_task(self.from_client(addr))
-
-    async def from_client(self, addr):
-        reader, writer = self.sessions[addr]
+    async def from_client(self, addr, client_addr, reader):
         while not reader.at_eof():
             data = await reader.read(self.bufsize)
             print(data)
             if data:
-                await self.socket.send_multipart([b'', addr, data])
+                await self.socket.send_multipart([addr, b'', RELAY, client_addr, msgpack.packb(data)])
         print('client closed')
         del self.sessions[addr]
-        #writer.close()
-        #await writer.wait_closed()
         print(f'{addr} writer clean up')
 
-    async def to_client(self, writer, data):
-        writer.write(data)
+    async def to_client(self, addr, client_addr, data):
+        _, writer = self.sessions[addr][client_addr]
+        writer.write(msgpack.unpackb(data))
         await writer.drain()
-
-    async def from_service(self):
-        while True:
-            _, addr, data = await self.socket.recv_multipart()
-            _, writer = self.sessions[addr]
-            if data: 
-                print(f'Data size is {len(data)}')
-                asyncio.create_task(self.to_client(writer, data))
-            #else:
-                #writer.close()
-                #await writer.wait_closed()
-            #    break
-        print('close service connection')
 
 
 @click.command()
-@click.option('--service-port', type=int)
-@click.option('--tunnel-port', type=int)
-def main(service_port, tunnel_port):
+@click.option('-p', '--port', type=int)
+def main(port):
     loop = asyncio.get_event_loop()
-    server = StunnelServer(service_port, tunnel_port)
+    server = StunnelServer(port)
     loop.create_task(server.run())
     loop.run_forever()
 

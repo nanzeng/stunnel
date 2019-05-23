@@ -5,7 +5,7 @@ setup(
     version='0.1.0',
     packages=find_packages(),
 
-    install_requires=['click', 'pyzmq'],
+    install_requires=['click', 'pyzmq', 'msgpack'],
 
     entry_points={
         'console_scripts': [

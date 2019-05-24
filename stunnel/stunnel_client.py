@@ -3,7 +3,6 @@ import asyncio
 import zmq
 import zmq.asyncio
 import logging
-import msgpack
 import socket
 
 #from .protocol import *
@@ -14,7 +13,7 @@ LOGOUT = b'\x02'
 EXCEPTION = b'\x03'
 RELAY = b'\x04'
 class StunnelClient:
-    def __init__(self, service_addr, service_port, server_addr, server_port, bind_port, bufsize=4096):
+    def __init__(self, service_addr, service_port, server_addr, server_port, bind_port, bufsize=32768):
         self.service_addr = service_addr
         self.service_port = service_port
         self.server_addr = server_addr
@@ -30,7 +29,7 @@ class StunnelClient:
 
     async def heartbeat(self, socket):
         while True:
-            await socket.send_multipart([self.identity(), b'', HEARTBEAT])
+            await socket.send_multipart([b'', HEARTBEAT])
             await asyncio.sleep(10)
 
     async def run(self):
@@ -42,7 +41,6 @@ class StunnelClient:
 
         while True:
             msg = await socket.recv_multipart()
-            print(msg)
             respond = msg[1:]
             cmd = respond[0]
             if cmd == RELAY:
@@ -60,15 +58,14 @@ class StunnelClient:
                         logging.info('connected to {writer.get_extra_info("peername")}')
                         self.sessions[client_addr] = reader, writer
                         asyncio.create_task(self.from_service(client_addr, socket))
-                asyncio.create_task(self.to_service(client_addr, msgpack.unpackb(respond[2])))
+                asyncio.create_task(self.to_service(client_addr, respond[2]))
 
     async def from_service(self, addr, socket):
         reader, writer = self.sessions[addr]
         while not reader.at_eof():
             data = await reader.read(self.bufsize)
-            print(data)
             if data:
-                await socket.send_multipart([b'', RELAY, addr, msgpack.packb(data)])
+                await socket.send_multipart([b'', RELAY, addr, data])
         print('EOF received from service, Exit')
         del self.sessions[addr]
         writer.close()

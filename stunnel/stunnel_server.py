@@ -3,7 +3,6 @@ import asyncio
 import zmq
 import zmq.asyncio
 import logging
-import msgpack
 
 from functools import partial
 from collections import defaultdict
@@ -16,7 +15,7 @@ EXCEPTION = b'\x03'
 RELAY = b'\x04'
 
 class StunnelServer:
-    def __init__(self, port, bufsize=4096):
+    def __init__(self, port, bufsize=32768):
         self.port = port
         self.bufsize = bufsize
     
@@ -29,31 +28,31 @@ class StunnelServer:
 
         while True:
             msg = await self.socket.recv_multipart()
-            print(msg)
             addr = msg[0]
             request = msg[2:]
             cmd = request[0]
+            
             if addr not in self.sessions:
-                port = int(addr.split(b':')[-1])
-                asyncio.create_task(self.create_session(addr, port))
+                asyncio.create_task(self.create_session(addr))
+
             if cmd == RELAY:
                 asyncio.create_task(self.to_client(addr, *request[1:]))
 
-    async def create_session(self, addr, port):
+    async def create_session(self, addr):
+        port = int(addr.split(b':')[-1])
         try:
             server = await asyncio.start_server(
                 partial(self.handle_connection, addr), '0.0.0.0', port
             )
         except Exception as e:
             logging.error(e)
-            self.socket.send_multipart([addr, b'', EXCEPTION, msgpack.packb(e)])
+            self.socket.send_multipart([addr, b'', EXCEPTION, str(e).encode()])
         else:
             logging.info(f'Listening on {port}')
             async with server:
                 await server.serve_forever()       
 
     async def handle_connection(self, addr, reader, writer):
-        print(writer)
         client_addr = writer.get_extra_info('peername')
         client_addr = f'{client_addr}'.encode()
         self.sessions[addr][client_addr] = reader, writer
@@ -63,16 +62,15 @@ class StunnelServer:
     async def from_client(self, addr, client_addr, reader):
         while not reader.at_eof():
             data = await reader.read(self.bufsize)
-            print(data)
             if data:
-                await self.socket.send_multipart([addr, b'', RELAY, client_addr, msgpack.packb(data)])
+                await self.socket.send_multipart([addr, b'', RELAY, client_addr, data])
         print('client closed')
-        del self.sessions[addr]
+        del self.sessions[addr][client_addr]
         print(f'{addr} writer clean up')
 
     async def to_client(self, addr, client_addr, data):
         _, writer = self.sessions[addr][client_addr]
-        writer.write(msgpack.unpackb(data))
+        writer.write(data)
         await writer.drain()
 
 

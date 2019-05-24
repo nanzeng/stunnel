@@ -4,6 +4,7 @@ import zmq
 import zmq.asyncio
 import logging
 import msgpack
+import socket
 
 #from .protocol import *
 
@@ -24,12 +25,20 @@ class StunnelClient:
         self.context = zmq.asyncio.Context()
         self.sessions = {}
 
+    def identity(self):
+        return f'{socket.gethostname()}:{self.bind_port}'.encode()
+
+    async def heartbeat(self, socket):
+        while True:
+            await socket.send_multipart([self.identity(), b'', HEARTBEAT])
+            await asyncio.sleep(10)
+
     async def run(self):
         socket = self.context.socket(zmq.DEALER)
+        socket.setsockopt(zmq.IDENTITY, self.identity())
         socket.connect(f'tcp://{self.server_addr}:{self.server_port}')
 
-        #init
-        await socket.send_multipart([b'', LOGON, msgpack.packb(self.bind_port)])
+        asyncio.create_task(self.heartbeat(socket))
 
         while True:
             msg = await socket.recv_multipart()

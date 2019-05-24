@@ -33,10 +33,10 @@ class StunnelServer:
             addr = msg[0]
             request = msg[2:]
             cmd = request[0]
-            if cmd == LOGON:
-                if addr not in self.sessions:
-                    asyncio.create_task(self.create_session(addr, msgpack.unpackb(request[1])))
-            elif cmd == RELAY:
+            if addr not in self.sessions:
+                port = int(addr.split(b':')[-1])
+                asyncio.create_task(self.create_session(addr, port))
+            if cmd == RELAY:
                 asyncio.create_task(self.to_client(addr, *request[1:]))
 
     async def create_session(self, addr, port):

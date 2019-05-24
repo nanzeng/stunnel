@@ -39,13 +39,18 @@ class StunnelClient:
             if cmd == RELAY:
                 client_addr = respond[1]
                 if client_addr not in self.sessions:
-                    reader, writer = await asyncio.open_connection(
-                        host=self.service_addr,
-                        port=self.service_port
-                    )
-                    logging.info('connected to {writer.get_extra_info("peername")}')
-                    self.sessions[client_addr] = reader, writer
-                    asyncio.create_task(self.from_service(client_addr, socket))
+                    try:
+                        reader, writer = await asyncio.open_connection(
+                            host=self.service_addr,
+                            port=self.service_port
+                        )
+                    except Exception as e:
+                        logging.error(f"Can't connect to server: {e}")
+                        continue
+                    else:
+                        logging.info('connected to {writer.get_extra_info("peername")}')
+                        self.sessions[client_addr] = reader, writer
+                        asyncio.create_task(self.from_service(client_addr, socket))
                 asyncio.create_task(self.to_service(client_addr, msgpack.unpackb(respond[2])))
 
     async def from_service(self, addr, socket):

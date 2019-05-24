@@ -12,6 +12,11 @@ LOGON = b'\x01'
 LOGOUT = b'\x02'
 EXCEPTION = b'\x03'
 RELAY = b'\x04'
+
+logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
+
+
 class StunnelClient:
     def __init__(self, service_addr, service_port, server_addr, server_port, bind_port, bufsize=32768):
         self.service_addr = service_addr
@@ -59,6 +64,8 @@ class StunnelClient:
                         self.sessions[client_addr] = reader, writer
                         asyncio.create_task(self.from_service(client_addr, socket))
                 asyncio.create_task(self.to_service(client_addr, respond[2]))
+            elif cmd == EXCEPTION:
+                logging.error(respond[1].decode())
 
     async def from_service(self, addr, socket):
         reader, writer = self.sessions[addr]

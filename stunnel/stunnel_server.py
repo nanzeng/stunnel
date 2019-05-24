@@ -14,6 +14,10 @@ LOGOUT = b'\x02'
 EXCEPTION = b'\x03'
 RELAY = b'\x04'
 
+logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s', 
+                    datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
+
+
 class StunnelServer:
     def __init__(self, port, bufsize=32768):
         self.port = port
@@ -39,7 +43,7 @@ class StunnelServer:
                 asyncio.create_task(self.to_client(addr, *request[1:]))
 
     async def create_session(self, addr):
-        port = int(addr.split(b':')[-1])
+        peer, port = addr.decode().split(':')
         try:
             server = await asyncio.start_server(
                 partial(self.handle_connection, addr), '0.0.0.0', port
@@ -48,7 +52,7 @@ class StunnelServer:
             logging.error(e)
             self.socket.send_multipart([addr, b'', EXCEPTION, str(e).encode()])
         else:
-            logging.info(f'Listening on {port}')
+            logging.info(f'{peer} Connected, Listening on {port}')
             async with server:
                 await server.serve_forever()       
 
@@ -56,7 +60,7 @@ class StunnelServer:
         client_addr = writer.get_extra_info('peername')
         client_addr = f'{client_addr}'.encode()
         self.sessions[addr][client_addr] = reader, writer
-        logging.info(f'client connected from {client_addr}')
+        logging.info(f'Client connected from {client_addr}')
         asyncio.create_task(self.from_client(addr, client_addr, reader))
 
     async def from_client(self, addr, client_addr, reader):

@@ -69,19 +69,26 @@ class StunnelClient:
 
     async def from_service(self, addr, socket):
         reader, writer = self.sessions[addr]
-        while not reader.at_eof():
+        while True:
             data = await reader.read(self.bufsize)
             if data:
                 await socket.send_multipart([b'', RELAY, addr, data])
-        print('EOF received from service, Exit')
+            else:
+                logging.info('EOF received from service, Exit')
+                break
         del self.sessions[addr]
         writer.close()
         await writer.wait_closed()
 
     async def to_service(self, addr, data):
-        _, writer = self.sessions[addr]
-        writer.write(data)
-        await writer.drain()
+        try:
+            _, writer = self.sessions[addr]
+        except KeyError:
+            # session closed, ignore
+            pass
+        else:
+            writer.write(data)
+            await writer.drain()
 
 
 @click.command()

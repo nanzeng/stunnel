@@ -14,6 +14,9 @@ LOGOUT = b'\x02'
 EXCEPTION = b'\x03'
 RELAY = b'\x04'
 
+HEARTBEAT_LIVENESS = 3
+HEARTBEAT_INTERVAL = 10
+
 logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s', 
                     datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
 
@@ -25,6 +28,18 @@ class StunnelServer:
     
         self.context = zmq.asyncio.Context()
         self.sessions = defaultdict(dict)
+        self.liveness = defaultdict(lambda: HEARTBEAT_LIVENESS)
+
+    async def heartbeat(self, addr, server):
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            self.liveness[addr] -= 1
+            if self.liveness[addr] <= 0:
+                logging.error(f'Connection from {addr.decode()} timeout, close service')
+                server.close()
+                await server.wait_closed()
+                del self.liveness[addr]
+                break
 
     async def run(self):
         self.socket = self.context.socket(zmq.ROUTER)
@@ -36,11 +51,13 @@ class StunnelServer:
             request = msg[2:]
             cmd = request[0]
             
-            if addr not in self.sessions:
+            if addr not in self.liveness:
                 asyncio.create_task(self.create_session(addr))
 
             if cmd == RELAY:
                 asyncio.create_task(self.to_client(addr, *request[1:]))
+
+            self.liveness[addr] = HEARTBEAT_LIVENESS
 
     async def create_session(self, addr):
         peer, port = addr.decode().split(':')
@@ -53,6 +70,7 @@ class StunnelServer:
             self.socket.send_multipart([addr, b'', EXCEPTION, str(e).encode()])
         else:
             logging.info(f'{peer} Connected, Listening on {port}')
+            asyncio.create_task(self.heartbeat(addr, server))
             async with server:
                 await server.serve_forever()       
 
@@ -61,9 +79,10 @@ class StunnelServer:
         client_addr = f'{client_addr}'.encode()
         self.sessions[addr][client_addr] = reader, writer
         logging.info(f'Client connected from {client_addr}')
-        asyncio.create_task(self.from_client(addr, client_addr, reader))
+        asyncio.create_task(self.from_client(addr, client_addr))
 
-    async def from_client(self, addr, client_addr, reader):
+    async def from_client(self, addr, client_addr):
+        reader, writer = self.sessions[addr][client_addr]
         while True:
             data = await reader.read(self.bufsize)
             if data:
@@ -72,6 +91,8 @@ class StunnelServer:
                 logging.info(f'Client {client_addr} closed session')
                 break
         del self.sessions[addr][client_addr]
+        writer.close()
+        await writer.wait_closed()
 
     async def to_client(self, addr, client_addr, data):
         try:

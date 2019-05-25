@@ -64,18 +64,24 @@ class StunnelServer:
         asyncio.create_task(self.from_client(addr, client_addr, reader))
 
     async def from_client(self, addr, client_addr, reader):
-        while not reader.at_eof():
+        while True:
             data = await reader.read(self.bufsize)
             if data:
                 await self.socket.send_multipart([addr, b'', RELAY, client_addr, data])
-        print('client closed')
+            else:
+                logging.info(f'Client {client_addr} closed session')
+                break
         del self.sessions[addr][client_addr]
-        print(f'{addr} writer clean up')
 
     async def to_client(self, addr, client_addr, data):
-        _, writer = self.sessions[addr][client_addr]
-        writer.write(data)
-        await writer.drain()
+        try:
+            _, writer = self.sessions[addr][client_addr]
+        except KeyError:
+            # session closed, ignore
+            pass
+        else:
+            writer.write(data)
+            await writer.drain()
 
 
 @click.command()

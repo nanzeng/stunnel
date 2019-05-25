@@ -60,7 +60,7 @@ class StunnelClient:
                         logging.error(f"Can't connect to server: {e}")
                         continue
                     else:
-                        logging.info('connected to {writer.get_extra_info("peername")}')
+                        logging.info(f'connected to {writer.get_extra_info("peername")}')
                         self.sessions[client_addr] = reader, writer
                         asyncio.create_task(self.from_service(client_addr, socket))
                 asyncio.create_task(self.to_service(client_addr, respond[2]))

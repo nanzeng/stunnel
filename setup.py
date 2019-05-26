@@ -4,7 +4,7 @@ setup(
     name='stunnel',
     version='0.1.3',
     packages=find_packages(),
-    include_package_data=True,
+    setup_requires=['setuptools_scm'],
     install_requires=['click', 'pyzmq', 'pyyaml'],
     entry_points={
         'console_scripts': [

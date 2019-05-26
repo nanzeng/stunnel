@@ -4,3 +4,4 @@ dist
 *.egg-info
 *.key_secret
 .vscode
+.eggs

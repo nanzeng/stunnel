@@ -1,3 +1,4 @@
+import os
 import click
 import asyncio
 import zmq
@@ -5,7 +6,8 @@ import zmq.asyncio
 import logging
 import socket
 
-#from .protocol import *
+from .utils import load_config
+from .utils import show_config as _show_config
 
 HEARTBEAT = b'\x00'
 LOGON = b'\x01'
@@ -18,13 +20,17 @@ logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s',
 
 
 class StunnelClient:
-    def __init__(self, service_addr, service_port, server_addr, server_port, bind_port, bufsize=32768):
+    def __init__(self, config, service_addr, service_port, bind_port):
         self.service_addr = service_addr
         self.service_port = service_port
-        self.server_addr = server_addr
-        self.server_port = server_port
         self.bind_port = bind_port
-        self.bufsize = bufsize
+        self.server_addr = config['server']['addr']
+        self.server_port = config['server']['port']
+        self.bufsize = config['bufsize']
+        self.heartbeat_interval = config['heartbeat']['interval']
+        self.secret_key = config['secret_key']
+        self.public_key = config['public_key']
+        self.server_key = config['server_key']
 
         self.context = zmq.asyncio.Context()
         self.sessions = {}
@@ -35,11 +41,14 @@ class StunnelClient:
     async def heartbeat(self, socket):
         while True:
             await socket.send_multipart([b'', HEARTBEAT])
-            await asyncio.sleep(10)
+            await asyncio.sleep(self.heartbeat_interval)
 
     async def run(self):
         socket = self.context.socket(zmq.DEALER)
         socket.setsockopt(zmq.IDENTITY, self.identity())
+        socket.curve_secretkey = self.secret_key
+        socket.curve_publickey = self.public_key
+        socket.curve_serverkey = self.server_key
         socket.connect(f'tcp://{self.server_addr}:{self.server_port}')
 
         asyncio.create_task(self.heartbeat(socket))
@@ -92,16 +101,33 @@ class StunnelClient:
 
 
 @click.command()
-@click.option('--service-addr', default='127.0.0.1')
+@click.option('-c', '--config', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml'))
+@click.option('--server-addr')
+@click.option('--server-port', type=int)
+@click.option('--service-addr')
 @click.option('--service-port', type=int)
-@click.option('--peer-addr')
-@click.option('--peer-port', type=int)
 @click.option('--bind-port', type=int)
-def main(service_addr, service_port, peer_addr, peer_port, bind_port):
+@click.option('-s', '--show-config', is_flag=True)
+def main(config, server_addr, server_port, service_addr, service_port, bind_port, show_config):
     loop = asyncio.get_event_loop()
-    client = StunnelClient(service_addr, service_port, peer_addr, peer_port, bind_port)
 
-    loop.create_task(client.run())
+    if show_config:
+        _show_config(config)
+
+    config = load_config(config, 'client')
+    if server_addr:
+        config['server']['addr'] = server_addr
+    if server_port:
+        config['server']['port'] = server_port
+    
+    if service_addr and service_port and bind_port:
+        client = StunnelClient(config, service_addr, service_port, bind_port)
+        loop.create_task(client.run())
+    else:
+        for service in config['services']:
+            client = StunnelClient(config, service['addr'], service['port'], service['bind_port'])
+            loop.create_task(client.run())
+
     loop.run_forever()
 
 

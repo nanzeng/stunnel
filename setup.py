@@ -2,15 +2,15 @@ from setuptools import setup, find_packages
 
 setup(
     name='stunnel',
-    version='0.1.2',
+    version='0.1.3',
     packages=find_packages(),
-
-    install_requires=['click', 'pyzmq', 'msgpack'],
-
+    include_package_data=True,
+    install_requires=['click', 'pyzmq', 'pyyaml'],
     entry_points={
         'console_scripts': [
             'stunnel_client = stunnel.stunnel_client:main',
             'stunnel_server = stunnel.stunnel_server:main',
+            'create_certificates = stunnel.create_certificates:main',
         ],
     },
 

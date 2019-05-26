@@ -1,0 +1,20 @@
+heartbeat:
+    liveness: 3
+    interval: 10
+
+# socket read and writer buffer
+bufsize: 65536 # 64KB
+
+server:
+    addr: localhost
+    port: 7011
+
+services:
+    - name: zeppline
+      addr: 127.0.0.1
+      port: 7070
+      bind_port: 7777
+    - name: ssh
+      addr: 127.0.0.1
+      port: 22
+      bind_port: 2222

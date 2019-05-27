@@ -3,6 +3,7 @@ import sys
 import yaml
 import logging
 import zmq.auth
+import shutil
 
 from collections import ChainMap
 
@@ -58,6 +59,9 @@ def load_config(path, role):
 
 
 def show_config(path):
+    if not os.path.exists(path):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
+
     try:
         with open(path, 'r') as f:
             data = yaml.load(f, Loader=Loader)
@@ -67,3 +71,14 @@ def show_config(path):
         sys.exit(1)
     else:
         sys.exit(0)
+
+
+def create_config(path):
+    """create config file in path, if the file doesn't exist, copy from sample config"""
+    config_dir = os.path.dirname(path)
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+
+    if not os.path.exists(path):
+        config_sample = os.path.join(os.path.dirname(__file__), 'config.yaml')
+        shutil.copy(config_sample, path)

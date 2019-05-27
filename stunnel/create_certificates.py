@@ -4,7 +4,7 @@ import click
 
 
 @click.command()
-@click.option('-d', '--certificates-dir', default=os.path.join(os.path.dirname(__file__), 'certificates'))
+@click.option('-d', '--certificates-dir', default=os.path.join(os.path.expanduser('~'), '.config', 'stunnel', 'certificates'))
 @click.option('-r', '--role', type=click.Choice(['server', 'client']))
 def main(certificates_dir, role):
     if not os.path.exists(certificates_dir):

@@ -9,7 +9,7 @@ from functools import partial
 from collections import defaultdict, ChainMap
 from zmq.auth.asyncio import AsyncioAuthenticator
 
-from .utils import load_config
+from .utils import load_config, create_config
 from .utils import show_config as _show_config
 
 HEARTBEAT = b'\x00'
@@ -140,11 +140,14 @@ class StunnelServer:
 
 
 @click.command()
-@click.option('-c', '--config', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml'))
+@click.option('-c', '--config', default=os.path.join(os.path.expanduser('~'), '.config', 'stunnel', 'config.yaml'))
 @click.option('-p', '--port', type=int)
 @click.option('-s', '--show-config', is_flag=True)
 def main(config, port, show_config):
     loop = asyncio.get_event_loop()
+
+    if not os.path.exists(config):
+        create_config(config)
 
     if show_config:
         _show_config(config)

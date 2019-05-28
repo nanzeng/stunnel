@@ -5,16 +5,26 @@ heartbeat:
 # socket read and writer buffer
 bufsize: 65536 # 64KB
 
-server:
+servers:
+  - name: local
     addr: localhost
     port: 7011
+    key: server.key
+  - name: firebird
+    addr: firebird.networkcover.com
+    port: 7012
+    key: firebird.key
+  - name: usvpn
+    addr: usvpn.networkcover.com
+    port: 7012
+    key: usvpn.key
 
 services:
-    - name: zeppline
-      addr: 127.0.0.1
-      port: 7070
-      bind_port: 7777
-    - name: ssh
-      addr: 127.0.0.1
-      port: 22
-      bind_port: 2222
+  - name: zeppline
+    addr: 127.0.0.1
+    port: 7070
+    bind_port: 7777
+  - name: ssh
+    addr: 127.0.0.1
+    port: 22
+    bind_port: 2222

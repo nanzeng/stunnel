@@ -6,7 +6,7 @@ import zmq.asyncio
 import logging
 import socket
 
-from .utils import load_config, create_config
+from .utils import load_config
 from .utils import show_config as _show_config
 
 HEARTBEAT = b'\x00'
@@ -20,23 +20,21 @@ logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s',
 
 
 class StunnelClient:
-    def __init__(self, config, service_addr, service_port, bind_port):
-        self.service_addr = service_addr
-        self.service_port = service_port
-        self.bind_port = bind_port
-        self.server_addr = config['server']['addr']
-        self.server_port = config['server']['port']
+    def __init__(self, config, server, service):
+        self.server = server
+        self.service = service
+
         self.bufsize = config['bufsize']
         self.heartbeat_interval = config['heartbeat']['interval']
         self.secret_key = config['secret_key']
         self.public_key = config['public_key']
-        self.server_key = config['server_key']
+        self.server_key = server['public_key']
 
         self.context = zmq.asyncio.Context()
         self.sessions = {}
 
     def identity(self):
-        return f'{socket.gethostname()}:{self.bind_port}'.encode()
+        return f'{socket.gethostname()}:{self.service["bind_port"]}'.encode()
 
     async def heartbeat(self, socket):
         while True:
@@ -49,7 +47,7 @@ class StunnelClient:
         socket.curve_secretkey = self.secret_key
         socket.curve_publickey = self.public_key
         socket.curve_serverkey = self.server_key
-        socket.connect(f'tcp://{self.server_addr}:{self.server_port}')
+        socket.connect(f'tcp://{self.server["addr"]}:{self.server["port"]}')
 
         asyncio.create_task(self.heartbeat(socket))
 
@@ -62,8 +60,8 @@ class StunnelClient:
                 if client_addr not in self.sessions:
                     try:
                         reader, writer = await asyncio.open_connection(
-                            host=self.service_addr,
-                            port=self.service_port
+                            host=self.service["addr"],
+                            port=self.service["port"]
                         )
                     except Exception as e:
                         logging.error(f"Can't connect to server: {e}")
@@ -102,33 +100,19 @@ class StunnelClient:
 
 @click.command()
 @click.option('-c', '--config', default=os.path.join(os.path.expanduser('~'), '.config', 'stunnel', 'config.yaml'))
-@click.option('--server-addr')
-@click.option('--server-port', type=int)
-@click.option('--service-addr')
-@click.option('--service-port', type=int)
-@click.option('--bind-port', type=int)
 @click.option('-s', '--show-config', is_flag=True)
-def main(config, server_addr, server_port, service_addr, service_port, bind_port, show_config):
+def main(config, show_config):
     loop = asyncio.get_event_loop()
 
-    if not os.path.exists(config):
-        create_config(config)
+    role = 'client'
 
     if show_config:
-        _show_config(config)
+        _show_config(role, config)
 
-    config = load_config(config, 'client')
-    if server_addr:
-        config['server']['addr'] = server_addr
-    if server_port:
-        config['server']['port'] = server_port
-    
-    if service_addr and service_port and bind_port:
-        client = StunnelClient(config, service_addr, service_port, bind_port)
-        loop.create_task(client.run())
-    else:
+    config = load_config(role, config)
+    for server in config['servers']:
         for service in config['services']:
-            client = StunnelClient(config, service['addr'], service['port'], service['bind_port'])
+            client = StunnelClient(config, server, service)
             loop.create_task(client.run())
 
     loop.run_forever()

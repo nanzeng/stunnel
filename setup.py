@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='stunnel',
-    version='0.1.4',
+    version='0.1.5',
     packages=find_packages(),
     setup_requires=['setuptools_scm'],
     install_requires=['click', 'pyzmq', 'pyyaml'],

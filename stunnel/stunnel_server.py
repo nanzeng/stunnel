@@ -9,7 +9,7 @@ from functools import partial
 from collections import defaultdict, ChainMap
 from zmq.auth.asyncio import AsyncioAuthenticator
 
-from .utils import load_config, create_config
+from .utils import load_config
 from .utils import show_config as _show_config
 
 HEARTBEAT = b'\x00'
@@ -24,11 +24,11 @@ logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s',
 
 class StunnelServer:
     def __init__(self, config):
-        self.port = config['server']['port']
+        self.port = config['port']
         self.bufsize = config['bufsize']
         self.heartbeat_liveness = config['heartbeat']['liveness']
         self.heartbeat_interval = config['heartbeat']['interval']
-        self.public_keys_dir = config['public_keys_dir']
+        self.public_keys_dir = config['client_keys_dir']
         self.secret_key = config['secret_key']
         self.public_key = config['public_key']
     
@@ -146,15 +146,14 @@ class StunnelServer:
 def main(config, port, show_config):
     loop = asyncio.get_event_loop()
 
-    if not os.path.exists(config):
-        create_config(config)
+    role = 'server'
 
     if show_config:
-        _show_config(config)
+        _show_config(role, config)
 
-    config = load_config(config, 'server')
+    config = load_config(role, config)
     if port:
-        config['server']['port'] = port
+        config['port'] = port
 
     server = StunnelServer(config)
     loop.create_task(server.run())

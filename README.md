@@ -1,6 +1,8 @@
-#STunnel
+# STunnel
+=========
 
 ## Overview
+-----------
 The intention of this project is to easily expose any server behind a
 firewall to the Internet. The STunnel server runs on a public accessible
 server. An STunnel client runs on a computer behind a firewall,
@@ -10,14 +12,17 @@ channel between the STunnel server and local services. Access to the services
 from the Internet is through the STunnel server.
 
 ## Requirements
+---------------
 * Python 3.7+
 
 ## Install
+----------
 ```
 $ python setup.py install
 ```
 
 ## Configuration
+----------------
 
 ### Server
 1. Create certificate

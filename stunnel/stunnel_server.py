@@ -1,4 +1,5 @@
 import os
+import sys
 import click
 import asyncio
 import zmq
@@ -154,6 +155,10 @@ def main(config, port, show_config):
     config = load_config(role, config)
     if port:
         config['port'] = port
+
+    if 'port' not in config:
+        print('Error: Server listening port is not configured')
+        sys.exit(1)
 
     server = StunnelServer(config)
     loop.create_task(server.run())

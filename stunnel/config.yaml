@@ -6,18 +6,14 @@ heartbeat:
 bufsize: 65536 # 64KB
 
 servers:
-  - name: local
+  - name: local1
     addr: localhost
     port: 7011
     key: server.key
-  - name: firebird
-    addr: firebird.networkcover.com
-    port: 7012
-    key: firebird.key
-  - name: usvpn
-    addr: usvpn.networkcover.com
-    port: 7012
-    key: usvpn.key
+  - name: local2
+    addr: localhost
+    port: 2345
+    key: server.key
 
 services:
   - name: zeppline

@@ -8,6 +8,8 @@ COPY requirements.txt setup.py $APPDIR/
 
 RUN pip install -r $APPDIR/requirements.txt
 
-RUN python $APPDIR/setup.py install
+WORKDIR $APPDIR
+
+RUN python setup.py install
 
 CMD ["stunnel_server", "-p", "7777"]

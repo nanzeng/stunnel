@@ -5,6 +5,11 @@
       dockerfilePath: ./Dockerfile
       buildContext: .
       tag: stunnel
+      pushRemote: true
+      registry: registry.networkcover.com:5000
+    env:
+      PLUGIN_DEBUG: "true"
+      PLUGIN_INSECURE: "true"
 - name: deploy to homelab
   steps:
   - applyYamlConfig:

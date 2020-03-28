@@ -4,7 +4,7 @@ LABEL "author"="zengnan@gmail.com"
 
 ENV APPDIR /app
 
-COPY requirements.txt setup.py $APPDIR/
+COPY requirements.txt setup.py stunnel $APPDIR/
 
 RUN pip install -r $APPDIR/requirements.txt
 
